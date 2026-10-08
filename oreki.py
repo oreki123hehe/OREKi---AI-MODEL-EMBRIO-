@@ -14,10 +14,12 @@ def cek():
     print("Python", sys.version.split()[0])
     for nama in ("numpy", "torch", "requests", "bs4"):
         try:
-            __import__(nama)
-            print(f"[ok]     {nama}")
-        except ImportError:
-            print(f"[belum]  {nama}")
+            modul = __import__(nama)
+            versi = getattr(modul, "__version__", "?")
+            print(f"[ok]     {nama} {versi}")
+        except Exception as e:
+            # Tampilkan penyebab asli, bukan hanya "belum"
+            print(f"[gagal]  {nama}: {type(e).__name__}: {str(e)[:200]}")
 
 
 PERINTAH = {"status": status, "cek": cek}
