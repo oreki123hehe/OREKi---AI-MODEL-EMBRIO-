@@ -1,0 +1,9 @@
+memori/
+otak/
+cadangan/
+log/
+STOP
+*.bin
+__pycache__/
+*.pyc
+.venv/
