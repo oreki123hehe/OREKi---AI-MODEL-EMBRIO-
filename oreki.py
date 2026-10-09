@@ -1,58 +1,96 @@
 #!/usr/bin/env python3
+"""OREKI v0.1: mesin penalaran berbasis hukum alam.
+
+  python oreki.py tanya "hitung F ; m = 2 kg ; a = 3 m/s2"
+  python oreki.py tanya "bisa v = 1,5 c ; m = 1 kg"
+  python oreki.py chat | hukum | cek | uji | demo
+"""
+import os
 import sys
-from inti import batas
 
-EFISIENSI = 0.3  # asumsi kasar: latih nyata ~30% dari kecepatan puncak matmul
+from inti.hukum import BASIS, cek_konsistensi
+from inti.larangan import LARANGAN
+from inti.mesin import cetak, jawab
+
+CONTOH = [
+    "hitung F ; m = 2 kg ; a = 3 m/s2",
+    "hitung Ek ; F = 10 N ; m = 2 kg ; t = 3 s ; v0 = 0 m/s",
+    "hitung v ; s = 100 m ; t = 20 s ; a = 0 m/s2",
+    "hitung v ; s = 100 m ; t = 20 s",
+    "bisa v = 1,5 c ; m = 1 kg",
+    "bisa v = 0,5 c ; m = 1 kg",
+    "bisa E_masuk = 100 J ; E_keluar = 120 J ; sistem = tertutup",
+    "hitung F ; m = 2 s ; a = 3 m/s2",
+]
 
 
-def status():
-    print("OREKI AI (Embrio)")
-    print(f"Batas parameter : {batas.MAKS_PARAMETER:,}")
-    print(f"Batas RAM       : {batas.MAKS_RAM_MB} MB")
-    print(f"RAM terpakai    : {batas.rss_anon_mb()} MB ({batas.status_ram()})")
+def tanya(argv):
+    if not argv:
+        print('Pakai: python oreki.py tanya "hitung F ; m = 2 kg ; a = 3 m/s2"')
+        return 1
+    print(cetak(jawab(" ".join(argv))))
+    return 0
 
 
-def benchmark():
-    try:
-        import time
-        import torch
-    except Exception:
-        print("Benchmark dilewati: torch belum bisa dipakai")
-        return
-    n, iterasi = 512, 30
-    a, b = torch.randn(n, n), torch.randn(n, n)
-    for _ in range(3):  # pemanasan
-        a @ b
-    t0 = time.perf_counter()
-    for _ in range(iterasi):
-        a @ b
-    dt = time.perf_counter() - t0
-    gflops = 2 * n ** 3 * iterasi / dt / 1e9
-    print(f"Benchmark matmul : {gflops:.1f} GFLOPS ({torch.get_num_threads()} thread)")
-    efektif = gflops * 1e9 * EFISIENSI
-    for nama, param, token in (("tahap 1", 2e6, 40e6), ("tahap 5", 109e6, 2.2e9)):
-        hari = 6 * param * token / efektif / 86400  # FLOP latih ~ 6 x param x token
-        print(f"Perkiraan latih {nama}: {hari:,.1f} hari "
-              f"(efisiensi {int(EFISIENSI * 100)}%, sangat kasar)")
+def chat():
+    print("OREKI v0.1. Ketik pertanyaan terstruktur, kosong untuk keluar.")
+    while True:
+        try:
+            baris = input("oreki> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 0
+        if not baris:
+            return 0
+        print(cetak(jawab(baris)))
+        print()
+
+
+def hukum():
+    print(f"{len(BASIS)} hukum persamaan:")
+    for h in BASIS:
+        print(f"  {h.rumus:<28} {h.nama}")
+        print(f"      berlaku: {h.syarat}")
+    print(f"\n{len(LARANGAN)} hukum larangan:")
+    for l in LARANGAN:
+        print(f"  {l.nama}  (berlaku: {l.syarat})")
+    return 0
 
 
 def cek():
     print("Python", sys.version.split()[0])
-    for nama in ("numpy", "torch", "requests", "bs4"):
-        try:
-            modul = __import__(nama)
-            versi = getattr(modul, "__version__", "?")
-            print(f"[ok]     {nama} {versi}")
-        except Exception as e:
-            # Tampilkan penyebab asli, bukan hanya "belum"
-            print(f"[gagal]  {nama}: {type(e).__name__}: {str(e)[:200]}")
-    benchmark()
+    masalah = cek_konsistensi()
+    if masalah:
+        print("[gagal] konsistensi dimensi hukum:")
+        for m in masalah:
+            print("  -", m)
+        return 1
+    print(f"[ok]    {len(BASIS)} hukum konsisten dimensinya")
+    return 0
 
 
-PERINTAH = {"status": status, "cek": cek}
+def uji():
+    import unittest
+    akar = os.path.dirname(os.path.abspath(__file__))
+    folder = os.path.join(akar, "tes")
+    suite = unittest.defaultTestLoader.discover(folder, top_level_dir=folder)
+    hasil = unittest.TextTestRunner(verbosity=1).run(suite)
+    return 0 if hasil.wasSuccessful() else 1
+
+
+def demo():
+    for q in CONTOH:
+        print(cetak(jawab(q)))
+        print("-" * 60)
+    return 0
+
+
+PERINTAH = {"chat": chat, "hukum": hukum, "cek": cek, "uji": uji, "demo": demo}
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2 or sys.argv[1] not in PERINTAH:
-        print("Pakai: python oreki.py [" + " | ".join(PERINTAH) + "]")
-        sys.exit(1)
-    PERINTAH[sys.argv[1]]()
+    if len(sys.argv) >= 2 and sys.argv[1] == "tanya":
+        sys.exit(tanya(sys.argv[2:]))
+    if len(sys.argv) >= 2 and sys.argv[1] in PERINTAH:
+        sys.exit(PERINTAH[sys.argv[1]]())
+    print(__doc__)
+    sys.exit(1)
